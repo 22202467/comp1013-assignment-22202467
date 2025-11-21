@@ -8,7 +8,7 @@ Student ID: 22202467
 
 Unit: COMP1013 – Analytics Programming
 
-Lecturer: [Insert Lecturer Name]
+Lecturer: NGUYEN Tan Luy
 
 Submission: GitHub Repository + vUWS
 
