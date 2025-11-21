@@ -1,0 +1,206 @@
+---
+title: "AP_A3"
+output: word_document
+date: "2025-11-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Part 1
+# Read datasets
+setwd("~/RStudio/AP_A3")
+auto <- read.csv("Automobile.csv", stringsAsFactors = FALSE)
+engine <- read.csv("Engine.csv", stringsAsFactors = FALSE)
+maint <- read.csv("Maintenance.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+# Inspect structure
+str(auto)
+str(engine)
+str(maint)
+```
+
+```{r}
+# Quick preview
+head(engine)
+summary(engine)
+```
+
+```{r}
+engine_clean <- engine            # create a working copy
+engine_clean[engine_clean == "?"] <- NA
+
+rows_affected <- sum(apply(engine == "?", 1, any))
+rows_affected
+```
+
+```{r}
+# Horsepower BEFORE cleaning: exclude "?"
+hp_before <- engine$Horsepower[engine$Horsepower != "?"]
+hp_before <- as.numeric(hp_before)
+```
+
+```{r}
+# Horsepower AFTER cleaning
+hp_after <- as.numeric(engine_clean$Horsepower)
+
+summary(hp_before)
+summary(hp_after)
+
+auto$BodyStyles <- factor(auto$BodyStyles)
+engine_clean$FuelTypes <- factor(engine_clean$FuelTypes)
+maint$ErrorCodes <- factor(maint$ErrorCodes)
+
+# Compute median (excluding NA)
+hp_median <- median(hp_before, na.rm = TRUE)
+
+# Convert horsepower column to numeric first
+engine_clean$Horsepower <- as.numeric(engine_clean$Horsepower)
+
+# Replace NA horsepower with median
+engine_clean$Horsepower[is.na(engine_clean$Horsepower)] <- hp_median
+
+hist(engine_clean$Horsepower,
+     breaks = 10,
+     col = "lightgreen",
+     main = "Horsepower Distribution After Cleaning",
+     xlab = "Horsepower")
+```
+
+```{r}
+#Part 2
+table(engine_clean$EngineType)
+
+engine_types <- levels(factor(engine_clean$EngineType))
+
+# Plot a histogram for each engine type
+par(mfrow = c(2, 2))     # Arrange plots in 2x2 grid (adjust if needed)
+
+for (type in engine_types) {
+  subset_hp <- engine_clean$Horsepower[engine_clean$EngineType == type]
+  
+  hist(subset_hp,
+       breaks = 10,
+       col = "lightblue",
+       main = paste("Horsepower -", type),
+       xlab = "Horsepower")
+}
+par(mfrow = c(1, 1))     # Reset layout
+
+# Create engine size groups
+engine_clean$EngineSizeGroup <- cut(engine_clean$EngineSize,
+                                    breaks = c(0, 90, 190, 299, Inf),
+                                    labels = c("60–90", "91–190", "191–299", "300+"),
+                                    right = TRUE)
+
+table(engine_clean$EngineSizeGroup)
+
+size_groups <- levels(engine_clean$EngineSizeGroup)
+
+par(mfrow = c(2, 2))   # 2x2 plot layout
+
+for (grp in size_groups) {
+  subset_hp <- engine_clean$Horsepower[engine_clean$EngineSizeGroup == grp]
+  
+  hist(subset_hp,
+       breaks = 10,
+       col = "lightgreen",
+       main = paste("Horsepower - Size:", grp),
+       xlab = "Horsepower")
+}
+par(mfrow = c(1, 1))
+```
+
+```{r}
+#Part 3
+# Merge Automobile and Engine datasets by EngineModel
+auto_engine <- merge(auto, engine_clean, by = "EngineModel")
+
+# Split data by fuel type
+gas_mpg <- auto_engine$CityMpg[auto_engine$FuelTypes == "gas"]
+diesel_mpg <- auto_engine$CityMpg[auto_engine$FuelTypes == "diesel"]
+
+# Summary statistics
+summary(gas_mpg)
+summary(diesel_mpg)
+
+# Two-sample t-test (unequal variances)
+t_test_result <- t.test(gas_mpg, diesel_mpg)
+t_test_result
+
+# Boxplot for CityMpg by DriveWheels
+boxplot(auto_engine$CityMpg ~ auto_engine$DriveWheels,
+        col = "lightblue",
+        main = "City MPG by DriveWheels",
+        xlab = "DriveWheels",
+        ylab = "City MPG")
+
+# Boxplot for HighwayMpg by DriveWheels
+boxplot(auto_engine$HighwayMpg ~ auto_engine$DriveWheels,
+        col = "lightgreen",
+        main = "Highway MPG by DriveWheels",
+        xlab = "DriveWheels",
+        ylab = "Highway MPG")
+
+# Extract only rows with actual trouble (confirmed OR suspected)
+trouble_data <- maint[maint$ErrorCodes != "0", ]
+nrow(trouble_data)
+
+trouble_counts <- sort(table(trouble_data$Troubles), decreasing = TRUE)
+top5_troubles <- head(trouble_counts, 5)
+top5_troubles
+
+# First join Maintenance with Automobile to attach EngineModel
+maint_auto <- merge(maint, auto, by = "PlateNumber")
+
+# Then join with Engine dataset to attach EngineType
+maint_full <- merge(maint_auto, engine_clean, by = "EngineModel")
+
+# Filter only trouble rows again (confirmed or suspected)
+maint_trouble <- maint_full[maint_full$ErrorCodes != "0", ]
+
+# Count trouble cases per engine type
+trouble_by_engine <- sort(table(maint_trouble$EngineType), decreasing = TRUE)
+trouble_by_engine
+```
+
+```{r}
+#Part 4
+# Merge Maintenance with Automobile
+maint_auto <- merge(maint, auto, by = "PlateNumber")
+
+# Merge with Engine
+maint_full <- merge(maint_auto, engine_clean, by = "EngineModel")
+
+table(maint_full$ErrorCodes)
+
+# Cross-tabulation
+error_method_table <- table(maint_full$ErrorCodes, maint_full$Methods)
+error_method_table
+
+
+barplot(error_method_table,
+        beside = TRUE,
+        col = c("lightblue", "lightgreen", "tomato"),
+        main = "Maintenance Methods by Error Type",
+        xlab = "Maintenance Method",
+        ylab = "Count",
+        legend = rownames(error_method_table))
+
+error_fuel_table <- table(maint_full$ErrorCodes, maint_full$FuelTypes)
+error_fuel_table
+
+barplot(error_fuel_table,
+        beside = TRUE,
+        col = c("skyblue", "orange", "darkgreen"),
+        main = "Error Codes by Fuel Type",
+        xlab = "Fuel Type",
+        ylab = "Count",
+        legend = rownames(error_fuel_table))
+
+table(maint_full$ErrorCodes, maint_full$BodyStyles)
+```
